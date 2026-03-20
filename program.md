@@ -38,7 +38,7 @@ The user cares more about recall (don't miss roars) than precision (some false a
 - **Positive class**: harbour seal roar (3,461 annotations, mean duration 2.8s)
 - **Negative class**: background (includes orca calls, ambient noise, boat noise)
 - **Neg:Pos ratio**: 3:1 in all splits
-- **Splits**: temporal — Train: Sep 1–20, Val: Sep 21–30, Test: Oct 1–15
+- **Splits**: temporal — Train: Sep 1 (1745 pos), Val: Sep 2 (782 pos), Test: Oct 1–15 (934 pos)
 
 ## Domain Knowledge
 

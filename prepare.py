@@ -19,6 +19,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
+import soundfile as sf
 import torch
 import torchaudio
 from sklearn.metrics import (
@@ -47,8 +48,8 @@ NEG_BUFFER_SEC = 6.0  # seconds buffer around annotations for negative sampling
 RANDOM_SEED = 42
 
 # Temporal split boundaries (UTC)
-TRAIN_END = datetime(2017, 9, 21)   # Train: Sep 1–20
-VAL_END = datetime(2017, 10, 1)     # Val: Sep 21–30
+TRAIN_END = datetime(2017, 9, 2)    # Train: Sep 1
+VAL_END = datetime(2017, 9, 3)      # Val: Sep 2
                                      # Test: Oct 1–15
 
 # Paths
@@ -124,8 +125,8 @@ def build_wav_index(raw_dir):
     index = []
     for wf in wav_files:
         start = parse_wav_timestamp(wf)
-        info = torchaudio.info(wf)
-        duration = info.num_frames / info.sample_rate
+        info = sf.info(str(wf))
+        duration = info.duration
         index.append((start, duration, wf))
     index.sort(key=lambda x: x[0])
     return index
@@ -160,18 +161,19 @@ def extract_clip(wav_path, offset_sec, wav_duration):
     num_frames = int(CLIP_DURATION * ORIG_SAMPLE_RATE)
 
     try:
-        waveform, sr = torchaudio.load(wav_path, frame_offset=frame_offset, num_frames=num_frames)
+        audio, sr = sf.read(str(wav_path), start=frame_offset, stop=frame_offset + num_frames, dtype="float32")
     except Exception as e:
         print(f"  WARNING: Failed to load {wav_path} at offset {clip_start:.1f}s: {e}")
         return None
 
-    if waveform.shape[1] < num_frames * 0.9:  # Less than 90% of expected length
+    if len(audio) < num_frames * 0.9:  # Less than 90% of expected length
         return None
 
     # Pad if slightly short
-    if waveform.shape[1] < num_frames:
-        pad = num_frames - waveform.shape[1]
-        waveform = torch.nn.functional.pad(waveform, (0, pad))
+    if len(audio) < num_frames:
+        audio = np.pad(audio, (0, num_frames - len(audio)))
+
+    waveform = torch.from_numpy(audio).unsqueeze(0)  # (1, n_samples)
 
     # Resample
     waveform = _get_resampler()(waveform)
@@ -420,7 +422,7 @@ def process_data():
             print(f"  {i + 1}/{len(negatives)}...")
 
         waveform = extract_clip(neg["wav_path"], neg["offset_in_file"],
-                                torchaudio.info(neg["wav_path"]).num_frames / ORIG_SAMPLE_RATE)
+                                sf.info(str(neg["wav_path"])).duration)
         if waveform is None:
             neg_skipped += 1
             continue
@@ -477,8 +479,8 @@ def process_data():
                     "neg_pos_ratio": NEG_POS_RATIO,
                 },
                 "split_boundaries": {
-                    "train": "Sep 1–20",
-                    "val": "Sep 21–30",
+                    "train": "Sep 1",
+                    "val": "Sep 2",
                     "test": "Oct 1–15",
                 },
             },
