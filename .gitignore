@@ -1,0 +1,23 @@
+# Data (too large for git)
+data/raw/*.wav
+data/raw/filelist.txt
+data/processed/
+data/splits/*.pt
+data/splits/*.json
+
+# Model checkpoints
+results/*.pt
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Experiment logs
+run.log
+
+# uv
+uv.lock
+
+# OS
+.DS_Store
