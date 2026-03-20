@@ -6,12 +6,7 @@ Browser-based tool for reviewing harbour seal (*Phoca vitulina*) roar detections
 
 ### 1. Install uv (Python package manager)
 
-**Mac:**
-```bash
-brew install uv
-```
-
-**Linux / WSL:**
+**Mac / Linux / WSL:**
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
@@ -21,10 +16,12 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
+No Homebrew, pip, or conda needed — just this one command.
+
 ### 2. Download this repository
 
 ```bash
-git clone https://github.com/mikeford/seal-roar-detection.git
+git clone https://github.com/michael-ford/seal-roar-detection.git
 cd seal-roar-detection
 ```
 
