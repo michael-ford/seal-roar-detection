@@ -13,6 +13,7 @@ import time
 
 import torch
 import torch.nn as nn
+import torchaudio
 from torch.utils.data import DataLoader
 
 from prepare import evaluate, load_splits
@@ -28,6 +29,29 @@ EPOCHS = 100          # Will be cut short by TIME_BUDGET
 TIME_BUDGET = 180     # seconds (3 minutes)
 FOCAL_GAMMA = 2.0
 FOCAL_ALPHA = 0.75    # Weight for positive class (recall bias)
+
+# ════════════════════════════════════════════════════════════════════════
+# Augmentation
+# ════════════════════════════════════════════════════════════════════════
+
+
+class SpecAugment(nn.Module):
+    """SpecAugment: time and frequency masking on spectrograms."""
+
+    def __init__(self, freq_mask_param=15, time_mask_param=20, n_freq_masks=2, n_time_masks=2):
+        super().__init__()
+        self.freq_mask = torchaudio.transforms.FrequencyMasking(freq_mask_param)
+        self.time_mask = torchaudio.transforms.TimeMasking(time_mask_param)
+        self.n_freq_masks = n_freq_masks
+        self.n_time_masks = n_time_masks
+
+    def forward(self, x):
+        for _ in range(self.n_freq_masks):
+            x = self.freq_mask(x)
+        for _ in range(self.n_time_masks):
+            x = self.time_mask(x)
+        return x
+
 
 # ════════════════════════════════════════════════════════════════════════
 # Model
@@ -129,6 +153,9 @@ def train():
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
     criterion = FocalLoss()
 
+    # Augmentation
+    augment = SpecAugment()
+
     # Training loop
     start_time = time.time()
     best_val_f2 = 0.0
@@ -146,6 +173,7 @@ def train():
         epoch_loss = 0.0
         n_batches = 0
         for specs, labels in train_loader:
+            specs = augment(specs)
             specs, labels = specs.to(device), labels.to(device)
             logits = model(specs).squeeze(-1)
             loss = criterion(logits, labels)
