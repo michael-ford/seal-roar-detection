@@ -106,7 +106,7 @@ The test set is one month later than training data, testing temporal generalizat
 
 ### Experiment Results
 
-16 experiments were run using the [autoresearch](https://github.com/karpathy/autoresearch) pattern — autonomous ML experimentation with time-boxed training, single-metric optimization (F2 score, recall-weighted), and git-based experiment tracking.
+18 experiments were run using the [autoresearch](https://github.com/karpathy/autoresearch) pattern — autonomous ML experimentation with time-boxed training, single-metric optimization (F2 score, recall-weighted), and git-based experiment tracking.
 
 **Top models (sorted by val F2):**
 
@@ -115,6 +115,7 @@ The test set is one month later than training data, testing temporal generalizat
 | gpu04 | ResNet-18 + label smoothing | **0.920** | 96.4% | 77.6% | 0.980 | 11.2M |
 | gpu01 | ResNet-18 pretrained | 0.918 | 96.0% | 78.0% | 0.975 | 11.2M |
 | gpu02 | ResNet-18, lower LR | 0.915 | 97.1% | 74.3% | 0.977 | 11.2M |
+| gpu05 | PANNs CNN14 (AudioSet) | 0.902 | 95.0% | 74.8% | 0.974 | 79.7M |
 | exp02 | CNN + residual blocks | 0.903 | 94.8% | 75.9% | 0.973 | 777K |
 | **exp12** | **Depthwise-sep CNN** | **0.901** | **96.3%** | **71.7%** | **0.972** | **47K** |
 | baseline | 4-layer CNN | 0.891 | 95.0% | 71.4% | 0.969 | 389K |
@@ -125,13 +126,39 @@ The test set is one month later than training data, testing temporal generalizat
 - ~50x faster inference — important for scanning hours of audio
 - No torchvision dependency
 
+### Cross-Validation
+
+3-fold temporal cross-validation rotating Sep 1 / Sep 2 / Oct 1–15 through train/val/test:
+
+**Depthwise-sep CNN (deployed model, 47K params):**
+
+| Metric | Mean ± Std | Fold 1 | Fold 2 | Fold 3 |
+|--------|-----------|--------|--------|--------|
+| Test F2 | 0.882 ± 0.019 | 0.855 | 0.897 | 0.895 |
+| Test Recall | 0.953 ± 0.005 | 0.949 | 0.951 | 0.959 |
+| Test Precision | 0.684 ± 0.051 | 0.613 | 0.731 | 0.708 |
+| Test AUC | 0.963 ± 0.008 | 0.951 | 0.969 | 0.968 |
+
+**ResNet-18 pretrained (GPU model, 11.2M params):**
+
+| Metric | Mean ± Std | Fold 1 | Fold 2 | Fold 3 |
+|--------|-----------|--------|--------|--------|
+| Test F2 | **0.908 ± 0.007** | 0.902 | 0.904 | 0.919 |
+| Test Recall | **0.958 ± 0.017** | 0.953 | 0.939 | 0.981 |
+| Test Precision | **0.754 ± 0.022** | 0.744 | 0.785 | 0.733 |
+| Test AUC | **0.975 ± 0.004** | 0.972 | 0.972 | 0.980 |
+
+ResNet-18 is more consistent across folds (lower std) and has ~3% higher F2. Both models maintain >93% recall across all folds.
+
+**PANNs CNN14 (pretrained on AudioSet)** scored 0.902 F2 on the default split — comparable to the lightweight model despite having 80M parameters. AudioSet pretraining did not provide meaningful advantage over ImageNet pretraining for this task, likely due to the small dataset size (3,461 labeled roars).
+
 ### False Positive Analysis
 
 Manual review of the top 15 model detections in unannotated regions found that **8 of 15 (53%) were actual roars** missed during annotation. This means the true precision is significantly higher than measured (~88–92% estimated vs 72% measured), and the annotations have incomplete coverage.
 
 ### Full Experiment Log
 
-All 16 experiments are logged in [`results.tsv`](results.tsv).
+All 18 experiments are logged in [`results.tsv`](results.tsv).
 
 | Tag | Status | F2 | Description |
 |-----|--------|-----|-------------|
@@ -152,3 +179,4 @@ All 16 experiments are logged in [`results.tsv`](results.tsv).
 | gpu02 | KEEP | 0.915 | ResNet-18 lower LR, 5min |
 | gpu03 | DISCARD | 0.890 | ResNet-18 discriminative LR |
 | gpu04 | KEEP | 0.920 | ResNet-18 + label smoothing + stronger aug |
+| gpu05 | KEEP | 0.902 | PANNs CNN14 pretrained on AudioSet |
