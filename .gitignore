@@ -5,8 +5,9 @@ data/processed/
 data/splits/*.pt
 data/splits/*.json
 
-# Model checkpoints
+# Model checkpoints (keep best_model.pt for annotator)
 results/*.pt
+!results/best_model.pt
 
 # Python
 __pycache__/
@@ -18,6 +19,11 @@ run.log
 
 # uv
 uv.lock
+
+# Annotator state
+test_annotator/
+.annotator_state.json
+reviewed_detections.tsv
 
 # OS
 .DS_Store
