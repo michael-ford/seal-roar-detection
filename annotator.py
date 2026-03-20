@@ -13,8 +13,11 @@ Opens a browser tab where you can:
 
 import argparse
 import json
+import shutil
 import sys
 import tempfile
+import zipfile
+from datetime import datetime
 from pathlib import Path
 
 import gradio as gr
@@ -375,6 +378,95 @@ def export_csv(detections, labels, output_path):
     return len(rows)
 
 
+def create_bundle(detections, labels, wav_dir, progress_cb=None):
+    """Create a zip bundle with annotations, audio clips, and metadata for model improvement.
+
+    Structure:
+        bundle_YYYYMMDD_HHMMSS/
+            manifest.json          — session metadata, model info, stats
+            annotations.tsv        — Raven-compatible labels
+            clips/
+                roar/              — confirmed roar clips (new positive training data)
+                    001_filename_42.0s_conf0.95.wav
+                not_roar/          — confirmed not-roar clips (hard negatives)
+                    001_filename_10.0s_conf0.87.wav
+    """
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    bundle_name = f"bundle_{timestamp}"
+    bundle_dir = Path(wav_dir) / bundle_name
+    clips_roar = bundle_dir / "clips" / "roar"
+    clips_not_roar = bundle_dir / "clips" / "not_roar"
+    clips_roar.mkdir(parents=True, exist_ok=True)
+    clips_not_roar.mkdir(parents=True, exist_ok=True)
+
+    # Stats
+    n_roar = sum(1 for l in labels if l == "Roar")
+    n_not_roar = sum(1 for l in labels if l == "Not Roar")
+    n_unlabeled = sum(1 for l in labels if l is None)
+
+    # Export annotations TSV
+    export_csv(detections, labels, bundle_dir / "annotations.tsv")
+
+    # Extract audio clips into roar/ and not_roar/ folders
+    labeled = [(i, d, l) for i, (d, l) in enumerate(zip(detections, labels)) if l is not None]
+    for j, (i, det, label) in enumerate(labeled):
+        if progress_cb:
+            progress_cb((j + 1) / len(labeled), desc=f"Extracting clip {j + 1}/{len(labeled)}...")
+
+        # Save raw (unprocessed) clip at original sample rate — useful for retraining
+        _, raw = extract_clip_at(det["file"], det["start_time"])
+        if raw is None:
+            continue
+        audio, sr = raw
+
+        safe_name = Path(det["filename"]).stem
+        clip_name = f"{j + 1:03d}_{safe_name}_{det['start_time']:.1f}s_conf{det['confidence']:.2f}.wav"
+        dest = clips_roar if label == "Roar" else clips_not_roar
+        sf.write(str(dest / clip_name), audio, sr)
+
+    # Write manifest
+    manifest = {
+        "created": timestamp,
+        "model": "SealRoarCNN (exp12, depthwise-separable, 47K params)",
+        "model_checkpoint": "results/best_model.pt",
+        "detection_threshold": DETECTION_THRESHOLD,
+        "slide_step_sec": SLIDE_STEP,
+        "nms_window_sec": NMS_WINDOW,
+        "clip_duration_sec": CLIP_DURATION,
+        "wav_directory": str(wav_dir),
+        "stats": {
+            "total_detections": len(detections),
+            "labeled_roar": n_roar,
+            "labeled_not_roar": n_not_roar,
+            "unlabeled": n_unlabeled,
+        },
+        "detections": [
+            {
+                "filename": d["filename"],
+                "start_time": d["start_time"],
+                "end_time": d["end_time"],
+                "confidence": d["confidence"],
+                "reviewer_label": l,
+            }
+            for d, l in zip(detections, labels)
+        ],
+    }
+    with open(bundle_dir / "manifest.json", "w") as f:
+        json.dump(manifest, f, indent=2)
+
+    # Zip it up
+    zip_path = Path(wav_dir) / f"{bundle_name}.zip"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for file in sorted(bundle_dir.rglob("*")):
+            if file.is_file():
+                zf.write(file, file.relative_to(bundle_dir.parent))
+
+    # Clean up unzipped directory
+    shutil.rmtree(bundle_dir)
+
+    return zip_path, n_roar, n_not_roar
+
+
 # ════════════════════════════════════════════════════════════════════════
 # Gradio App
 # ════════════════════════════════════════════════════════════════════════
@@ -537,6 +629,27 @@ def build_app(initial_dir=None):
         n_exported = export_csv(dets, labels, output_path)
         return f"Exported {n_exported} reviewed detections to:\n`{output_path}`"
 
+    def do_bundle(progress=gr.Progress()):
+        """Create zip bundle with annotations + audio clips for model improvement."""
+        dets = app_state["detections"]
+        labels = app_state["labels"]
+        if not dets:
+            return "No detections to bundle."
+
+        n_labeled = sum(1 for l in labels if l is not None)
+        if n_labeled == 0:
+            return "No labeled detections yet. Review some detections first."
+
+        zip_path, n_roar, n_not_roar = create_bundle(
+            dets, labels, app_state["wav_dir"], progress_cb=progress,
+        )
+        size_mb = zip_path.stat().st_size / (1024 * 1024)
+        return (
+            f"Bundle created: `{zip_path.name}` ({size_mb:.1f} MB)\n\n"
+            f"{n_roar} roar clips + {n_not_roar} not-roar clips\n\n"
+            f"Send this zip file back for model improvement."
+        )
+
     # ── Build UI ──
 
     custom_css = """
@@ -588,8 +701,10 @@ def build_app(initial_dir=None):
                     next_btn = gr.Button("Next →")
 
                 gr.Markdown("---")
+                gr.Markdown("### Export")
                 export_btn = gr.Button("Export CSV", variant="secondary")
-                export_status = gr.Textbox(label="Export", interactive=False)
+                bundle_btn = gr.Button("Bundle for Model Training", variant="secondary")
+                export_status = gr.Textbox(label="Export", interactive=False, lines=4)
 
         # ── Wire events ──
 
@@ -618,6 +733,7 @@ def build_app(initial_dir=None):
         )
 
         export_btn.click(fn=do_export, outputs=[export_status])
+        bundle_btn.click(fn=do_bundle, outputs=[export_status])
 
     return app
 
