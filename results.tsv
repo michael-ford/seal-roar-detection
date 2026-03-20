@@ -2,5 +2,13 @@ tag	status	val_f2	val_f1	val_auc_roc	val_precision	val_recall	val_threshold	trai
 baseline	KEEP	0.8911	0.8151	0.9694	0.7137	0.9501	0.2300	184.2	389057	4-layer CNN, focal loss, AdamW lr=1e-3, batch=32
 exp01	KEEP	0.8990	0.8275	0.9693	0.7307	0.9540	0.7200	187.6	389057	add SpecAugment (2x freq mask 15, 2x time mask 20)
 exp02	KEEP	0.9028	0.8430	0.9725	0.7592	0.9476	0.6300	195.8	777473	add residual connections to CNN blocks (777K params)
-exp03	DISCARD	0.8905	0.8254	0.9647	0.7357	0.9399	0.4700	212.9	777473	OneCycleLR max_lr=3e-3 (reverted)
-exp04	DISCARD	0.8940	0.8019	0.9596	0.6844	0.9680	0.6500	206.2	777473	mixup alpha=0.3 (reverted)
+exp03	DISCARD	0.8905	0.8254	0.9647	0.7357	0.9399	0.4700	212.9	777473	OneCycleLR max_lr=3e-3
+exp04	DISCARD	0.8940	0.8019	0.9596	0.6844	0.9680	0.6500	206.2	777473	mixup alpha=0.3
+exp05	DISCARD	0.8766	0.8089	0.9591	0.7167	0.9284	0.3400	214.8	777473	dropout 0.3, weight_decay 1e-3
+exp06	DISCARD	0.8606	0.7742	0.9446	0.6633	0.9297	0.4200	316.6	777473	batch=64, lr=2e-3, 5min budget
+exp07	DISCARD	0.8862	0.7943	0.9653	0.6772	0.9604	0.3400	321.9	777473	5min budget at lr=1e-3
+exp08	DISCARD	0.8622	0.7858	0.9569	0.6847	0.9220	0.5900	205.5	788505	SE attention blocks
+exp09	DISCARD	0.8900	0.7979	0.9641	0.6805	0.9642	0.7000	187.5	777473	grad clip + validate every epoch
+exp10	DISCARD	0.8519	0.7198	0.9502	0.5720	0.9706	0.9400	259.2	3103233	wider 64->128->256->512 (3M params, too slow)
+exp11	DISCARD	0.8752	0.8089	0.9600	0.7183	0.9258	0.4700	223.9	777473	focal alpha=0.85 gamma=1.0
+exp12	KEEP	0.9011	0.8221	0.9723	0.7171	0.9629	0.4000	186.3	47233	depthwise-separable CNN (47K params, 17 epochs)
