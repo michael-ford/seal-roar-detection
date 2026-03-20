@@ -635,4 +635,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     app = build_app(initial_dir=args.wav_dir)
-    app.launch()
+    app.launch(inbrowser=True)
