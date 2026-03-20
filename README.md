@@ -80,3 +80,75 @@ That's it. On first run, `uv` automatically installs Python and all dependencies
 **No detections found** — The model may not detect roars if the recordings don't contain harbour seal vocalizations, or if the audio quality differs significantly from the training data (SoundTrap 36 kHz recordings from Lasqueti Island, BC).
 
 **Audio sounds wrong** — The playback is bandpass filtered (50–4000 Hz) and amplified 200x. This is intentional — harbour seal roars are very quiet in raw underwater recordings.
+
+## Model Development
+
+### Data
+
+- **Source:** SoundTrap ST303 hydrophone recordings from Lasqueti Island, BC (Sep–Oct 2017)
+- **Annotations:** 3,461 confirmed harbour seal roars from PAMGuard spectrogram annotations
+- **Audio:** 36 kHz, mono, 16-bit WAV (5-minute recordings)
+- **Features:** 128-band mel spectrograms, PCEN normalization, bandpass 50–4000 Hz, resampled to 16 kHz
+- **Clip duration:** 4 seconds
+- **Negative class:** Background noise including orca calls, ambient ocean noise, boat noise (3:1 neg:pos ratio)
+
+### Train / Val / Test Split
+
+Temporal split to test generalization across time:
+
+| Split | Dates | Roars | Background | Total |
+|-------|-------|-------|------------|-------|
+| Train | Sep 1, 2017 | 1,745 | 5,235 | 6,980 |
+| Val | Sep 2, 2017 | 782 | 2,346 | 3,128 |
+| Test | Oct 1–15, 2017 | 934 | 2,802 | 3,736 |
+
+The test set is one month later than training data, testing temporal generalization (different noise conditions, potentially different individual seals).
+
+### Experiment Results
+
+16 experiments were run using the [autoresearch](https://github.com/karpathy/autoresearch) pattern — autonomous ML experimentation with time-boxed training, single-metric optimization (F2 score, recall-weighted), and git-based experiment tracking.
+
+**Top models (sorted by val F2):**
+
+| Experiment | Model | F2 | Recall | Precision | AUC | Params |
+|-----------|-------|-----|--------|-----------|-----|--------|
+| gpu04 | ResNet-18 + label smoothing | **0.920** | 96.4% | 77.6% | 0.980 | 11.2M |
+| gpu01 | ResNet-18 pretrained | 0.918 | 96.0% | 78.0% | 0.975 | 11.2M |
+| gpu02 | ResNet-18, lower LR | 0.915 | 97.1% | 74.3% | 0.977 | 11.2M |
+| exp02 | CNN + residual blocks | 0.903 | 94.8% | 75.9% | 0.973 | 777K |
+| **exp12** | **Depthwise-sep CNN** | **0.901** | **96.3%** | **71.7%** | **0.972** | **47K** |
+| baseline | 4-layer CNN | 0.891 | 95.0% | 71.4% | 0.969 | 389K |
+
+**Deployed model:** exp12 (depthwise-separable CNN, 47K params). Chosen over the GPU models because:
+- Nearly identical recall (96.3% vs 96.4%)
+- 240x smaller (47K vs 11.2M params)
+- ~50x faster inference — important for scanning hours of audio
+- No torchvision dependency
+
+### False Positive Analysis
+
+Manual review of the top 15 model detections in unannotated regions found that **8 of 15 (53%) were actual roars** missed during annotation. This means the true precision is significantly higher than measured (~88–92% estimated vs 72% measured), and the annotations have incomplete coverage.
+
+### Full Experiment Log
+
+All 16 experiments are logged in [`results.tsv`](results.tsv).
+
+| Tag | Status | F2 | Description |
+|-----|--------|-----|-------------|
+| baseline | KEEP | 0.891 | 4-layer CNN, focal loss, AdamW lr=1e-3 |
+| exp01 | KEEP | 0.899 | + SpecAugment |
+| exp02 | KEEP | 0.903 | + Residual connections (777K params) |
+| exp03 | DISCARD | 0.891 | OneCycleLR lr=3e-3 |
+| exp04 | DISCARD | 0.894 | Mixup alpha=0.3 |
+| exp05 | DISCARD | 0.877 | Lower dropout, higher weight decay |
+| exp06 | DISCARD | 0.861 | Batch=64, lr=2e-3, 5min budget |
+| exp07 | DISCARD | 0.886 | 5min budget at lr=1e-3 |
+| exp08 | DISCARD | 0.862 | SE attention blocks |
+| exp09 | DISCARD | 0.890 | Gradient clipping + validate every epoch |
+| exp10 | DISCARD | 0.852 | Wider channels (3M params, too slow on MPS) |
+| exp11 | DISCARD | 0.875 | Focal alpha=0.85, gamma=1.0 |
+| exp12 | KEEP | 0.901 | Depthwise-separable CNN (47K params) |
+| gpu01 | KEEP | 0.918 | ResNet-18 pretrained (Vast.ai RTX 3060) |
+| gpu02 | KEEP | 0.915 | ResNet-18 lower LR, 5min |
+| gpu03 | DISCARD | 0.890 | ResNet-18 discriminative LR |
+| gpu04 | KEEP | 0.920 | ResNet-18 + label smoothing + stronger aug |
