@@ -53,6 +53,16 @@ class SpecAugment(nn.Module):
         return x
 
 
+def mixup(specs, labels, alpha=0.3):
+    """Mixup augmentation: blend pairs of samples."""
+    lam = torch.distributions.Beta(alpha, alpha).sample().item()
+    batch_size = specs.size(0)
+    index = torch.randperm(batch_size)
+    mixed_specs = lam * specs + (1 - lam) * specs[index]
+    mixed_labels = lam * labels.float() + (1 - lam) * labels[index].float()
+    return mixed_specs, mixed_labels
+
+
 # ════════════════════════════════════════════════════════════════════════
 # Model
 # ════════════════════════════════════════════════════════════════════════
@@ -194,6 +204,7 @@ def train():
         n_batches = 0
         for specs, labels in train_loader:
             specs = augment(specs)
+            specs, labels = mixup(specs, labels)
             specs, labels = specs.to(device), labels.to(device)
             logits = model(specs).squeeze(-1)
             loss = criterion(logits, labels)

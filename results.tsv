@@ -1,1 +1,5 @@
 tag	status	val_f2	val_f1	val_auc_roc	val_precision	val_recall	val_threshold	train_time	n_params	description
+baseline	KEEP	0.8911	0.8151	0.9694	0.7137	0.9501	0.2300	184.2	389057	4-layer CNN, focal loss, AdamW lr=1e-3, batch=32
+exp01	KEEP	0.8990	0.8275	0.9693	0.7307	0.9540	0.7200	187.6	389057	add SpecAugment (2x freq mask 15, 2x time mask 20)
+exp02	KEEP	0.9028	0.8430	0.9725	0.7592	0.9476	0.6300	195.8	777473	add residual connections to CNN blocks (777K params)
+exp03	DISCARD	0.8905	0.8254	0.9647	0.7357	0.9399	0.4700	212.9	777473	OneCycleLR max_lr=3e-3 (reverted)
