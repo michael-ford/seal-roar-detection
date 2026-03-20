@@ -204,7 +204,6 @@ def train():
         n_batches = 0
         for specs, labels in train_loader:
             specs = augment(specs)
-            specs, labels = mixup(specs, labels)
             specs, labels = specs.to(device), labels.to(device)
             logits = model(specs).squeeze(-1)
             loss = criterion(logits, labels)
