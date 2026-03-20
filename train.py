@@ -58,8 +58,25 @@ class SpecAugment(nn.Module):
 # ════════════════════════════════════════════════════════════════════════
 
 
+class ResBlock(nn.Module):
+    """Residual block with two conv layers."""
+
+    def __init__(self, channels):
+        super().__init__()
+        self.conv1 = nn.Conv2d(channels, channels, 3, padding=1)
+        self.bn1 = nn.BatchNorm2d(channels)
+        self.conv2 = nn.Conv2d(channels, channels, 3, padding=1)
+        self.bn2 = nn.BatchNorm2d(channels)
+
+    def forward(self, x):
+        residual = x
+        out = torch.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        return torch.relu(out + residual)
+
+
 class SealRoarCNN(nn.Module):
-    """Simple 4-layer CNN for spectrogram classification.
+    """CNN with residual blocks for spectrogram classification.
 
     Input: (batch, 1, 128, 126) mel spectrogram
     Output: (batch, 1) raw logits
@@ -71,14 +88,17 @@ class SealRoarCNN(nn.Module):
             nn.Conv2d(1, 32, 3, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(),
+            ResBlock(32),
             nn.MaxPool2d(2),
             nn.Conv2d(32, 64, 3, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
+            ResBlock(64),
             nn.MaxPool2d(2),
             nn.Conv2d(64, 128, 3, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(),
+            ResBlock(128),
             nn.MaxPool2d(2),
             nn.Conv2d(128, 256, 3, padding=1),
             nn.BatchNorm2d(256),
